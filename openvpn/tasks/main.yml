@@ -1,0 +1,269 @@
+---
+# tasks file for openvpn
+# task for update repos and install repo epel-release
+- name: Update repo
+  dnf:
+    name: "*"
+    state: latest
+
+# Install repo epel-release
+- name: Install repo epel-release
+  dnf:
+    name: epel-release
+    state: present
+
+# Install package git
+- name: Install package git
+  dnf:
+    name: git
+    state: present
+
+# Install pexpect
+- name: Install pexpect
+  shell: pip3 install pexpect
+
+# Install package easy-rsa
+- name: Install package easy-rsa
+  dnf:
+    name: easy-rsa
+    state: present
+
+# Create folder for CA with easy-rsa
+- name: Create directory for CA easy-rsa
+  file:
+    path: /home/danilo.bastos/easy-rsa/
+    state: directory
+
+# Create symbolic link of folders easy-rsa
+- name: Create symbolic link of folders easy-rsa
+  shell: ln -s /usr/share/easy-rsa/3/* /home/danilo.bastos/easy-rsa/
+
+# Change permissions of directory easy-rsa
+- name: Change permissions of directory easy-rsa
+  file:
+    path: /home/danilo.bastos/easy-rsa/
+    owner: danilo.bastos
+    mode: 0700
+
+# Init PKI for easy-rsa
+- name: Init PKI
+  shell: /home/danilo.bastos/easy-rsa/easyrsa init-pki
+
+# Copy file vars using by easy-rsa CA
+- name: Copy file vars for CA easy-rsa
+  copy:
+    src: vars
+    dest: /home/danilo.bastos/easy-rsa
+
+# Automation ask
+#- name: Auto response build-ca
+#  shell: set it to EASYRSA_BATCH "1"
+
+# Generate keys for CA auth
+- name: Generate keys
+  command: /home/danilo.bastos/easy-rsa/easyrsa --batch build-ca nopass
+
+# Change Permissions of pki directory
+- name: Change permissions of directory pki
+  file:
+    path: /home/danilo.bastos/pki/
+    owner: danilo.bastos
+    mode: 0700
+
+# Install openvpn
+- name: Install package openvpn
+  dnf:
+    name: openvpn
+    state: present
+    
+# Copy file of algoritm eliptical mode
+- name: Copy file vars for generate algoritm eliptical
+  copy:
+    src: vars_algoritm
+    dest: /home/danilo.bastos/easy-rsa/vars
+
+# Generate key and certificate
+- name: Generate key and certificate
+  command: /home/danilo.bastos/easy-rsa/easyrsa --batch gen-req server nopass
+
+# Copy file for folder of openvpn
+- name: copy private key for folder openvpn
+  command: cp /home/danilo.bastos/pki/private/server.key /etc/openvpn/server/
+
+# Copy certificate for other folder
+- name: Copy file server.req
+  command: mv /home/danilo.bastos/pki/reqs/server.req /tmp/
+
+# Import certificate of server
+- name: Import certificate
+  command: /home/danilo.bastos/easy-rsa/easyrsa import-req /tmp/server.req server
+
+# Sign certificate
+- name: Sign certificate of server
+  command: /home/danilo.bastos/easy-rsa/easyrsa --batch sign-req server server
+
+# Copy certificate assign
+- name: Copy certificates assign's
+  command: cp /home/danilo.bastos/pki/issued/server.crt /tmp/
+
+# Copy certificate assign
+- name: Copy certificates assign's
+  command: cp /home/danilo.bastos/pki/ca.crt /tmp/
+
+# Copy certificates assign's for folder openvpn server
+- name: Copy certificates assign's for folder openvpn server
+  command: cp /tmp/server.crt /etc/openvpn/server/
+
+# Copy certificates assign's for folder openvpn server
+- name: Copy certificates assign's for folder openvpn server
+  command: cp /tmp/ca.crt /etc/openvpn/server/
+
+# Generate key tls-crypt sharing
+- name: Generate key tls-crypt
+  command: openvpn --genkey --secret /home/danilo.bastos/easy-rsa/ta.key
+
+# Copy key tls-crypt for folder openvpn server
+- name: Copy tls-crypt for folder openvpn server
+  command: cp /home/danilo.bastos/easy-rsa/ta.key /etc/openvpn/server
+
+# Create folder for config clients
+- name: Create directory for config clients
+  file:
+    path: /home/danilo.bastos/client-configs
+    state: directory
+ 
+# Create folder for config clients keys
+- name: Create directory for CA easy-rsa
+  file:
+    path: /home/danilo.bastos/client-configs/keys
+    state: directory
+
+# Change permissions on folder config clients
+- name: Change permissions of directory easy-rsa
+  file:
+    path: /home/danilo.bastos/client-configs/
+    owner: danilo.bastos
+    mode: 0700
+
+# Copy file server.conf for folder openvpn server
+- name: Copy file server.conf for folder openvpn server
+  copy:
+    src: server.conf
+    dest: /etc/openvpn/server/
+
+# Active ip_forward
+- name: Active ip_forward IPV4
+  shell: echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf && sysctl -p
+
+# Role of firewall zone trusted for interface tun
+- firewalld:
+    zone: trusted
+    interface: tun0
+    permanent: true
+    state: enabled
+
+# Role of firewall for service openvpn
+- firewalld:
+    service: openvpn
+    permanent: true
+    state: enabled
+
+# Restart firewalld for active roles
+  notify:
+    - restart_firewalld
+
+# Masquerade role
+- firewalld:
+      zone: trusted
+      masquerade: yes
+      immediate: true
+      permanent: true
+      state: enabled
+
+# Add POSTROUTING in role masquerade
+- name: Add POSTROUTING in role masquerade
+  shell: DEVICE=$(ip route | awk '/^default via/ {print $5}') && firewall-cmd --permanent --direct --passthrough ipv4 -t nat -A POSTROUTING -s 10.8.0.0/24 -o $DEVICE -j MASQUERADE
+
+# Restart firewalld for active roles
+  notify:
+    - restart_firewalld
+
+# Enable openvpn-server@server.service
+- name: Enable openvpn-server@server.service
+  shell: systemctl -f enable openvpn-server@server.service
+
+# Start openvpn service
+  notify:
+    - start_openvpn
+
+# Create folder for files clients
+- name: Create directory for files clients
+  file:
+    path: /home/danilo.bastos/client-configs/files
+    state: directory
+
+# Copy file base.conf for folder openvpn clients
+- name: Copy file base.conf for folder openvpn server
+  copy:
+    src: base.conf
+    dest: /home/danilo.bastos/client-configs/
+
+# Copy file make config for create clients of vpn
+- name: Copy file make config for create clients of vpn
+  copy:
+    src: make_config.sh
+    dest: /home/danilo.bastos/client-configs/
+
+# Change permissions on file config clients
+- name: Change permissions of file config clients
+  file:
+    path: /home/danilo.bastos/client-configs/make_config.sh
+    owner: danilo.bastos
+    mode: 0700
+
+# Change permissions for all folders
+- name: Change permissions on folders
+  shell: chown danilo.bastos -R /home/danilo.bastos/* && chmod 700 -R /home/danilo.bastos/*
+
+# Generate key and certificate for client
+- name: Generate key and certificate for client
+  command: /home/danilo.bastos/easy-rsa/easyrsa --batch gen-req client1 nopass
+
+# Copy file for folder keys
+- name: Copy file for folder keys
+  shell: cp /home/danilo.bastos/pki/private/client1.key /home/danilo.bastos/client-configs/keys/
+
+# Assign file req
+- name: Assign file req of client
+  shell: mv /home/danilo.bastos/pki/reqs/client1.req /tmp/
+
+# import req of client
+- name: Import file req of client
+  command: /home/danilo.bastos/easy-rsa/easyrsa --batch import-req /tmp/client1.req client1
+
+# Assign req of client
+- name: Assign req of client
+  command: /home/danilo.bastos/easy-rsa/easyrsa --batch sign-req client client1
+
+# Copy file for folder clients key
+- name: Copy file for folder clients key
+  shell: cp /home/danilo.bastos/pki/issued/client1.crt /home/danilo.bastos/client-configs/keys/
+
+# Copy file for folder clients key
+- name: Copy file for folder clients key
+  shell: cp /home/danilo.bastos/easy-rsa/ta.key /home/danilo.bastos/client-configs/keys/
+
+# Copy file for folder clients key
+- name: Copy file ca.crt for folder clients key
+  shell: cp /etc/openvpn/server/ca.crt /home/danilo.bastos/client-configs/keys/
+
+# Change permissions folder
+- name: Change permissions folder keys
+  shell: chown danilo.bastos /home/danilo.bastos/client-configs/keys/* && chmod 700 -R /home/danilo.bastos/client-configs/keys/*
+
+# Move folder PKI
+- name: Move folder PKI
+  shell: mv /home/danilo.bastos/pki/ /home/danilo.bastos/easy-rsa/
+
+
+

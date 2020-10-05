@@ -1,0 +1,8 @@
+set_var EASYRSA_REQ_COUNTRY    "BR"
+set_var EASYRSA_REQ_PROVINCE   "Brazil"
+set_var EASYRSA_REQ_CITY       "Nossa Senhora do Socorro"
+set_var EASYRSA_REQ_ORG        "XL Solutions"
+set_var EASYRSA_REQ_EMAIL      "danilo.bastos@xlsol.com"
+set_var EASYRSA_REQ_OU         "Community"
+set_var EASYRSA_ALGO           "ec"
+set_var EASYRSA_DIGEST         "sha512"

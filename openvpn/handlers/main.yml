@@ -1,0 +1,11 @@
+---
+# handlers file for openvpn
+- name: restart_firewalld
+  service:
+    name: firewalld
+    state: restarted
+
+- name: start_openvpn
+  service:
+    name: openvpn-server@server.service
+    state: started
