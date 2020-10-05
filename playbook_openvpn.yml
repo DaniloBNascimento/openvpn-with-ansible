@@ -1,0 +1,8 @@
+---
+- name: Create auto CA with easy-rsa Three
+  hosts: openvpn
+  remote_user: danilo.bastos
+  become: yes
+
+  roles:
+    - openvpn
